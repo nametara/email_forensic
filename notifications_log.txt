@@ -1,0 +1,91 @@
+
+======================================================================
+📅 Time: 2026-06-27 04:26:26
+📧 Notification Type: PHISHING
+🔴 Risk Score: 8
+─────────────────────────────────────────────────────────────
+📩 Original Email Details:
+   From: IT Security
+   To: David Mike
+   Subject: âš ï¸ URGENT: Your Laurentian Account Has Been Locked
+─────────────────────────────────────────────────────────────
+⚠️  Detected Threats:
+  - Sender domain (laurentian-secure.ca) does not match link domain (laurentian-verify.com)
+  - Contains 4 account/credential-related sensitive keywords
+  - Contains urgent/threatening language: "suspended"
+  - Suspicious file extension detected: ".com"
+─────────────────────────────────────────────────────────────
+🔗 Links in Email:
+  - http://laurentian-verify.com/secure?user=dmike23
+─────────────────────────────────────────────────────────────
+📄 Body Preview:
+Dear David Mike,
+
+We have detected suspicious login attempts on your Laurentian University email account from an unknown IP address (192.168.1.45) outside of Canada.
+
+To prevent your account from being permanently suspended, you must verify your identity within 24 hours.
+
+Click the link below to ver...
+─────────────────────────────────────────────────────────────
+💡 Actions Recommended:
+   1. Do NOT click any links in the suspicious email.
+   2. Do NOT reply or forward the email.
+   3. Delete the email from your inbox.
+   4. If you have already clicked any link, change your password immediately.
+======================================================================
+
+
+======================================================================
+📅 Time: 2026-06-27 04:26:26
+📧 Notification Type: PHISHING
+🔴 Risk Score: 8
+─────────────────────────────────────────────────────────────
+📩 Original Email Details:
+   From: IT Security
+   To: David Mike
+   Subject: âš ï¸ URGENT: Your Laurentian Account Has Been Locked
+─────────────────────────────────────────────────────────────
+⚠️  Detected Threats:
+  - Sender domain (laurentian-secure.ca) does not match link domain (laurentian-verify.com)
+  - Contains 4 account/credential-related sensitive keywords
+  - Contains urgent/threatening language: "suspended"
+  - Suspicious file extension detected: ".com"
+─────────────────────────────────────────────────────────────
+🔗 Links in Email:
+  - http://laurentian-verify.com/secure?user=dmike23
+─────────────────────────────────────────────────────────────
+📄 Body Preview:
+Dear David Mike,
+
+We have detected suspicious login attempts on your Laurentian University email account from an unknown IP address (192.168.1.45) outside of Canada.
+
+To prevent your account from being permanently suspended, you must verify your identity within 24 hours.
+
+Click the link below to ver...
+─────────────────────────────────────────────────────────────
+💡 Actions Recommended:
+   1. Do NOT click any links in the suspicious email.
+   2. Do NOT reply or forward the email.
+   3. Delete the email from your inbox.
+   4. If you have already clicked any link, change your password immediately.
+======================================================================
+
+
+======================================================================
+📅 Time: 2026-06-27 04:26:26
+📊 PHISHING NOTIFICATION SUMMARY
+─────────────────────────────────────────────────────────────
+📬 Total Phishing Emails Detected: 2
+─────────────────────────────────────────────────────────────
+📧 Affected Users:
+   - David Mike (Phishing) - âš ï¸ URGENT: Your Laurentian Account Has Been Locked
+   - David Mike (Phishing) - âš ï¸ URGENT: Your Laurentian Account Has Been Locked
+
+─────────────────────────────────────────────────────────────
+💡 Recommendations:
+   1. Review all 2 phishing emails immediately.
+   2. Notify affected users to change their passwords.
+   3. Block malicious domains and links at the email gateway.
+   4. Conduct security awareness training for all employees.
+======================================================================
+

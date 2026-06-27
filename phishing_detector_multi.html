@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>🔍 Multi-Protocol Phishing Email Detector</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; padding: 20px; }
+        .container { max-width: 1300px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .upload-area { border: 2px dashed #ccc; padding: 30px; text-align: center; border-radius: 8px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
+        .upload-area:hover { background: #f0f8ff; border-color: #007bff; }
+        .upload-area.dragover { border-color: #007bff; background: #e7f1ff; }
+        h1 { margin-top: 0; color: #1a2b4c; border-bottom: 3px solid #007bff; padding-bottom: 10px; }
+        .subtitle { color: #6c757d; margin-bottom: 20px; }
+
+        .protocol-summary { display: flex; gap: 15px; flex-wrap: wrap; margin: 15px 0 25px 0; }
+        .proto-card { padding: 15px 25px; border-radius: 10px; color: white; font-weight: bold; min-width: 120px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .proto-card.smtp { background: #007bff; }
+        .proto-card.pop3 { background: #fd7e14; }
+        .proto-card.imap { background: #6f42c1; }
+        .proto-card.total { background: #6c757d; }
+        .proto-card .count { font-size: 28px; display: block; }
+        .proto-card .label { font-size: 14px; opacity: 0.9; }
+
+        .email-card { border-left: 5px solid #28a745; padding: 15px; margin: 15px 0; background: #fafafa; border-radius: 4px; }
+        .email-card.suspicious { border-left-color: #ffc107; background: #fff8e1; }
+        .email-card.phishing { border-left-color: #dc3545; background: #ffebee; }
+        .email-card .proto-tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-right: 8px; }
+        .proto-tag.smtp { background: #007bff; color: white; }
+        .proto-tag.pop3 { background: #fd7e14; color: white; }
+        .proto-tag.imap { background: #6f42c1; color: white; }
+
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; color: white; font-size: 13px; font-weight: bold; margin-right: 10px; }
+        .badge-safe { background: #28a745; }
+        .badge-suspicious { background: #ffc107; color: #333; }
+        .badge-phishing { background: #dc3545; }
+
+        .rule-tag { display: inline-block; background: #e9ecef; padding: 2px 12px; margin: 3px; border-radius: 12px; font-size: 12px; border: 1px solid #dee2e6; }
+        .rule-tag.danger { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .rule-tag.warning { background: #fff3cd; border-color: #ffeeba; color: #856404; }
+
+        .stats-flex { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .stat-item { padding: 10px 20px; border-radius: 30px; color: white; font-weight: bold; }
+        .stat-total { background: #6c757d; }
+        .stat-safe { background: #28a745; }
+        .stat-susp { background: #ffc107; color: #333; }
+        .stat-phish { background: #dc3545; }
+
+        .btn { padding: 10px 25px; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+
+        .action-bar { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; align-items: center; }
+        .action-bar .hint { font-size: 14px; color: #6c757d; margin-left: 5px; }
+
+        pre { white-space: pre-wrap; word-wrap: break-word; background: #f1f1f1; padding: 10px; border-radius: 4px; font-size: 13px; max-height: 200px; overflow-y: auto; }
+        .hidden { display: none; }
+        .loader { text-align: center; padding: 30px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .filter-hint { font-size: 13px; color: #6c757d; background: #f8f9fa; padding: 8px 15px; border-radius: 4px; margin: 10px 0; }
+        .filter-hint code { background: #e9ecef; padding: 2px 8px; border-radius: 3px; }
+        .empty-state { text-align: center; padding: 40px; color: #6c757d; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #28a745; color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; animation: slideIn 0.3s ease; }
+        .toast.error { background: #dc3545; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📧 Multi-Protocol Phishing Email Detector</h1>
+    <p class="subtitle">Upload any PCAP — auto-detects <strong>SMTP</strong> (port 25/587), <strong>POP3</strong> (port 110/995), and <strong>IMAP</strong> (port 143/993) traffic.</p>
+
+    <div class="upload-area" id="dropZone">
+        <input type="file" id="fileInput" accept=".pcap,.pcapng" style="display:none;">
+        <p style="font-size: 20px;">📂 Click or Drag & Drop</p>
+        <p style="color: #6c757d;">Upload your .pcap or .pcapng file (Max 100MB)</p>
+    </div>
+
+    <div id="loader" class="loader hidden">
+        <div class="spinner"></div>
+        <p>⏳ Parsing PCAP and extracting emails...</p>
+    </div>
+
+    <div id="output" class="hidden" style="margin-top: 20px;">
+        <div id="protocolSummary"></div>
+        <div id="stats"></div>
+        <div id="actionBar" class="hidden">
+            <div class="action-bar">
+                <button class="btn btn-danger" onclick="generateNotificationLog()">📤 Generate Notification Log (TXT)</button>
+                <span class="hint">💡 Downloads a timestamped <code>notifications_log.txt</code> file directly.</span>
+            </div>
+        </div>
+        <div id="emailList"></div>
+    </div>
+</div>
+
+<script>
+// ================================================================
+// 1. PCAP PARSER (Supports SMTP, POP3, IMAP on ports 25, 110, 143)
+// ================================================================
+function parsePcap(data) {
+    const view = new DataView(data);
+    let offset = 0;
+
+    const magic = view.getUint32(offset, true);
+    if (magic !== 0xa1b2c3d4 && magic !== 0xd4c3b2a1 && magic !== 0x4d3c2b1a) {
+        throw new Error("Invalid PCAP file format. Only classic pcap supported.");
+    }
+    const littleEndian = (magic === 0xa1b2c3d4);
+    offset += 24;
+
+    const targetPorts = new Set([25, 587, 110, 995, 143, 993]);
+    const packets = [];
+
+    while (offset + 16 <= data.byteLength) {
+        const ts_sec = view.getUint32(offset, littleEndian);
+        const ts_usec = view.getUint32(offset + 4, littleEndian);
+        const incl_len = view.getUint32(offset + 8, littleEndian);
+        offset += 16;
+
+        if (offset + incl_len > data.byteLength) break;
+
+        const packetData = new Uint8Array(data, offset, incl_len);
+        offset += incl_len;
+
+        if (packetData.length < 14) continue;
+
+        const ethType = (packetData[12] << 8) | packetData[13];
+        if (ethType !== 0x0800) continue;
+
+        const ipStart = 14;
+        const ipHeaderLen = (packetData[ipStart] & 0x0f) * 4;
+        if (packetData.length < ipStart + ipHeaderLen) continue;
+        const protocol = packetData[ipStart + 9];
+        if (protocol !== 6) continue;
+
+        const tcpStart = ipStart + ipHeaderLen;
+        const tcpHeaderLen = ((packetData[tcpStart + 12] >> 4) & 0x0f) * 4;
+        if (packetData.length < tcpStart + tcpHeaderLen) continue;
+
+        const sport = (packetData[tcpStart] << 8) | packetData[tcpStart + 1];
+        const dport = (packetData[tcpStart + 2] << 8) | packetData[tcpStart + 3];
+        const flags = packetData[tcpStart + 13];
+
+        if (!targetPorts.has(sport) && !targetPorts.has(dport)) continue;
+
+        const hasPayload = packetData.length > tcpStart + tcpHeaderLen;
+        if (!hasPayload) continue;
+
+        const payloadStart = tcpStart + tcpHeaderLen;
+        const payloadLen = packetData.length - payloadStart;
+        if (payloadLen <= 0) continue;
+
+        const payloadBytes = new Uint8Array(packetData.buffer, packetData.byteOffset + payloadStart, payloadLen);
+        let payloadStr = new TextDecoder('ascii', { fatal: false }).decode(payloadBytes);
+        payloadStr = payloadStr.replace(/\x00/g, '');
+
+        const isClientToServer = (sport > 1024) && targetPorts.has(dport);
+        const isServerToClient = targetPorts.has(sport) && (dport > 1024);
+
+        let direction = 'unknown';
+        if (isClientToServer) direction = 'client->server';
+        else if (isServerToClient) direction = 'server->client';
+        if (direction === 'unknown') continue;
+
+        const srcIP = `${packetData[ipStart+12]}.${packetData[ipStart+13]}.${packetData[ipStart+14]}.${packetData[ipStart+15]}`;
+        const dstIP = `${packetData[ipStart+16]}.${packetData[ipStart+17]}.${packetData[ipStart+18]}.${packetData[ipStart+19]}`;
+
+        packets.push({
+            src: srcIP,
+            dst: dstIP,
+            sport: sport,
+            dport: dport,
+            flags: flags,
+            ts: ts_sec + (ts_usec / 1000000),
+            payload: payloadStr,
+            direction: direction,
+            protocol: determineProtocol(sport, dport, payloadStr)
+        });
+    }
+    return packets;
+}
+
+function determineProtocol(sport, dport, payload) {
+    const lower = payload.toLowerCase();
+    if (sport === 25 || dport === 25 || sport === 587 || dport === 587) return 'SMTP';
+    if (sport === 110 || dport === 110 || sport === 995 || dport === 995) {
+        // Check for POP3 commands
+        if (lower.includes('user ') || lower.includes('pass ') || lower.includes('retr ') || 
+            lower.includes('list ') || lower.includes('+ok')) {
+            return 'POP3';
+        }
+        return 'POP3';
+    }
+    if (sport === 143 || dport === 143 || sport === 993 || dport === 993) {
+        // Check for IMAP commands
+        if (lower.includes('login') || lower.includes('select') || lower.includes('fetch') || 
+            lower.includes('* ok') || lower.includes('logout')) {
+            return 'IMAP';
+        }
+        // Check for IMAP literal pattern
+        if (/\{(\d+)\}/.test(payload)) {
+            return 'IMAP';
+        }
+        return 'IMAP';
+    }
+    return 'Unknown';
+}
+
+// ================================================================
+// 2. EMAIL EXTRACTION (SMTP, POP3, IMAP)
+// ================================================================
+function extractEmails(packets) {
+    const streams = new Map();
+    for (const pkt of packets) {
+        let key = pkt.direction === 'client->server' 
+            ? `${pkt.src}:${pkt.sport}-${pkt.dst}:${pkt.dport}`
+            : `${pkt.dst}:${pkt.dport}-${pkt.src}:${pkt.sport}`;
+        if (!streams.has(key)) {
+            streams.set(key, { clientData: '', serverData: '', protocol: pkt.protocol, packets: [] });
+        }
+        const stream = streams.get(key);
+        stream.packets.push(pkt);
+        if (pkt.direction === 'client->server') stream.clientData += pkt.payload;
+        else stream.serverData += pkt.payload;
+    }
+
+    const emails = [];
+    for (const [key, stream] of streams) {
+        let extracted = null;
+        if (stream.protocol === 'SMTP') {
+            extracted = extractSMTPEmail(stream.clientData, stream.serverData, key);
+        } else if (stream.protocol === 'POP3') {
+            extracted = extractPOP3Email(stream.clientData, stream.serverData, key);
+        } else if (stream.protocol === 'IMAP') {
+            extracted = extractIMAPEmail(stream.clientData, stream.serverData, key);
+        }
+        if (extracted) {
+            extracted.protocol = stream.protocol;
+            emails.push(extracted);
+        }
+    }
+    return emails;
+}
+
+function extractSMTPEmail(clientData, serverData, streamKey) {
+    if (!clientData.includes('DATA\r\n')) return null;
+    const parts = clientData.split('DATA\r\n');
+    if (parts.length < 2) return null;
+    let emailData = parts[1];
+    const endIndex = emailData.indexOf('\r\n.\r\n');
+    if (endIndex === -1) return null;
+    emailData = emailData.substring(0, endIndex);
+    return parseEmailHeaders(emailData, streamKey);
+}
+
+function extractPOP3Email(clientData, serverData, streamKey) {
+    // Look for RETR response or any +OK with email content
+    // Pattern: +OK ... \r\n email content \r\n . \r\n
+    const okMatch = serverData.match(/\+OK\s+(\d+)\s+octets?\s*\r?\n([\s\S]*?)\r?\n\.\r?\n/i);
+    if (okMatch) {
+        const emailData = okMatch[2];
+        const parsed = parseEmailHeaders(emailData, streamKey);
+        if (parsed) return parsed;
+    }
+    
+    // Try RETR pattern specifically
+    const retrMatch = serverData.match(/RETR\s+\d+\s*\r?\n\+OK\s+(\d+)\s+octets?\s*\r?\n([\s\S]*?)\r?\n\.\r?\n/i);
+    if (retrMatch) {
+        const emailData = retrMatch[2];
+        const parsed = parseEmailHeaders(emailData, streamKey);
+        if (parsed) return parsed;
+    }
+    
+    // Last resort: look for any +OK followed by email-like content
+    const genericMatch = serverData.match(/\+OK\s*\r?\n([\s\S]*?)\r?\n\.\r?\n/i);
+    if (genericMatch) {
+        const emailData = genericMatch[1];
+        // Only use if it looks like an email
+        if (emailData.includes('From:') && emailData.includes('To:')) {
+            return parseEmailHeaders(emailData, streamKey);
+        }
+    }
+    
+    return null;
+}
+
+function extractIMAPEmail(clientData, serverData, streamKey) {
+    // METHOD 1: Look for the literal pattern in FETCH response
+    // Pattern: BODY[] {size} \r\n email content \r\n )
+    const fetchMatch = serverData.match(/FETCH\s*\([^)]*BODY\[\]\s*\{(\d+)\}\s*\r?\n([\s\S]*?)\r?\n\s*\)/i);
+    if (fetchMatch) {
+        const emailData = fetchMatch[2];
+        const parsed = parseEmailHeaders(emailData, streamKey);
+        if (parsed) return parsed;
+    }
+    
+    // METHOD 2: Look for the literal pattern with BODY.PEEK[]
+    const peekMatch = serverData.match(/FETCH\s*\([^)]*BODY\.PEEK\[\]\s*\{(\d+)\}\s*\r?\n([\s\S]*?)\r?\n\s*\)/i);
+    if (peekMatch) {
+        const emailData = peekMatch[2];
+        const parsed = parseEmailHeaders(emailData, streamKey);
+        if (parsed) return parsed;
+    }
+    
+    // METHOD 3: Generic literal extraction
+    // Find any {size} literal and extract the following content
+    const literalRegex = /\{(\d+)\}\s*\r?\n([\s\S]*?)(?=\r?\n\s*\)|\r?\n[A-Z0-9])/g;
+    let match;
+    while ((match = literalRegex.exec(serverData)) !== null) {
+        const size = parseInt(match[1]);
+        let emailData = match[2];
+        // Verify the content has email headers
+        if (emailData.includes('From:') && emailData.includes('To:')) {
+            const parsed = parseEmailHeaders(emailData, streamKey);
+            if (parsed) return parsed;
+        }
+        // If the literal was truncated, try to get more
+        if (emailData.length < size && serverData.length > literalRegex.lastIndex) {
+            // Try to get more data
+            const remaining = serverData.substring(literalRegex.lastIndex);
+            if (remaining) {
+                emailData += remaining;
+                const parsed = parseEmailHeaders(emailData, streamKey);
+                if (parsed) return parsed;
+            }
+        }
+    }
+    
+    // METHOD 4: Look for raw email-like content in the server data
+    // This is a fallback for when the literal isn't properly formatted
+    const lines = serverData.split('\n');
+    let emailContent = '';
+    let inEmail = false;
+    let foundHeaders = false;
+    
+    for (const line of lines) {
+        if (line.includes('FETCH') && (line.includes('BODY') || line.includes('{'))) {
+            inEmail = true;
+            continue;
+        }
+        if (inEmail) {
+            if (line.trim() === ')' || line.trim() === '') {
+                break;
+            }
+            emailContent += line + '\n';
+            if (line.includes('From:') || line.includes('To:') || line.includes('Subject:')) {
+                foundHeaders = true;
+            }
+        }
+    }
+    
+    if (foundHeaders && emailContent) {
+        const parsed = parseEmailHeaders(emailContent, streamKey);
+        if (parsed) return parsed;
+    }
+    
+    // METHOD 5: Search for email headers anywhere in the server data
+    // This is the most aggressive fallback - find any From/To/Subject pattern
+    const headerMatch = serverData.match(/From:\s*[^\n]+\nTo:\s*[^\n]+\nSubject:\s*[^\n]+\n\n([\s\S]*?)(?=\n[^\s]|$)/i);
+    if (headerMatch) {
+        const emailData = headerMatch[0];
+        const parsed = parseEmailHeaders(emailData, streamKey);
+        if (parsed) return parsed;
+    }
+    
+    // METHOD 6: Search for From: and To: anywhere in the data
+    const fromMatch = serverData.match(/From:\s*([^\n]+)/i);
+    const toMatch = serverData.match(/To:\s*([^\n]+)/i);
+    const subjectMatch = serverData.match(/Subject:\s*([^\n]+)/i);
+    if (fromMatch && toMatch) {
+        // Try to extract the body after the headers
+        const bodyMatch = serverData.match(/From:[^\n]+\nTo:[^\n]+\nSubject:[^\n]+\n\n([\s\S]*?)(?=\n[^\s]|$)/i);
+        const body = bodyMatch ? bodyMatch[1].trim() : '(No body extracted)';
+        return {
+            from: fromMatch[1].trim(),
+            to: toMatch[1].trim(),
+            subject: subjectMatch ? subjectMatch[1].trim() : '(No Subject)',
+            body: body,
+            streamKey: streamKey,
+            raw: serverData
+        };
+    }
+    
+    return null;
+}
+
+function parseEmailHeaders(emailData, streamKey) {
+    const lines = emailData.split(/\r?\n/);
+    let from = '', to = '', subject = '', body = [];
+    let isBody = false;
+    
+    for (const line of lines) {
+        if (!isBody && line.trim() === '') {
+            isBody = true;
+            continue;
+        }
+        if (!isBody) {
+            const lower = line.toLowerCase();
+            if (lower.startsWith('from:')) {
+                from = line.substring(5).trim();
+            } else if (lower.startsWith('to:')) {
+                to = line.substring(3).trim();
+            } else if (lower.startsWith('subject:')) {
+                subject = line.substring(8).trim();
+            }
+        } else {
+            // Skip lines that look like IMAP/SMTP control commands
+            if (!line.startsWith('*') && !line.startsWith('A') && !line.startsWith('+OK') && !line.startsWith('250')) {
+                body.push(line);
+            }
+        }
+    }
+    
+    // If we didn't find headers with the line-by-line method, try regex
+    if (!from && !to) {
+        const fromMatch = emailData.match(/^From:\s*(.+)$/m);
+        const toMatch = emailData.match(/^To:\s*(.+)$/m);
+        const subjectMatch = emailData.match(/^Subject:\s*(.+)$/m);
+        if (fromMatch) from = fromMatch[1].trim();
+        if (toMatch) to = toMatch[1].trim();
+        if (subjectMatch) subject = subjectMatch[1].trim();
+        const bodyMatch = emailData.match(/\r?\n\r?\n([\s\S]*)/);
+        if (bodyMatch) body = bodyMatch[1].split(/\r?\n/);
+        else body = [];
+    }
+    
+    if (!from && !to && !subject) return null;
+    
+    return {
+        from: from || 'Unknown',
+        to: to || 'Unknown',
+        subject: subject || '(No Subject)',
+        body: body.join('\n').trim(),
+        streamKey: streamKey,
+        raw: emailData
+    };
+}
+
+// ================================================================
+// 3. PHISHING DETECTION ENGINE (Heuristic)
+// ================================================================
+function analyzePhishing(email) {
+    const flags = [];
+    const text = `${email.from} ${email.subject} ${email.body}`.toLowerCase();
+    const from = email.from.toLowerCase();
+    const urlRegex = /(https?:\/\/[^\s\n\r]+)/g;
+    const foundUrls = email.body.match(urlRegex) || [];
+
+    // Rule 1: Domain mismatch
+    if (foundUrls.length > 0 && from.includes('@')) {
+        const fromDomain = from.split('@')[1].replace(/[^a-zA-Z0-9.-]/g, '');
+        for (const url of foundUrls) {
+            try {
+                const urlObj = new URL(url);
+                let urlDomain = urlObj.hostname.replace(/^www\./, '').split(':')[0];
+                if (!urlDomain.includes(fromDomain) && fromDomain.length > 5) {
+                    flags.push({ rule: `Sender domain (${fromDomain}) does not match link domain (${urlDomain})`, level: 'phishing' });
+                    break;
+                }
+            } catch (e) {}
+        }
+    }
+
+    // Rule 2: Money/Prize Lure
+    const moneyWords = ['million', 'dollar', 'prize', 'won', 'winner', 'congratulations', 'free', 'claim', 'cash', 'reward', 'lottery'];
+    if (moneyWords.some(w => text.includes(w)) && foundUrls.length > 0) {
+        flags.push({ rule: 'Contains money/prize lure words with an external link', level: 'phishing' });
+    }
+
+    // Rule 3: URL Shortener
+    const shortDomains = ['bit.ly', 'tinyurl', 'shorturl', 'goo.gl', 'ow.ly', 'buff.ly', 'tiny.cc', 'is.gd', 't.co'];
+    for (const dom of shortDomains) {
+        if (text.includes(dom)) {
+            flags.push({ rule: `Uses known URL shortener/redirect service: "${dom}"`, level: 'suspicious' });
+            break;
+        }
+    }
+
+    // Rule 4: Credential Harvesting
+    const credWords = ['password', 'verify', 'confirm', 'login', 'account', 'bank', 'paypal', 'reset', 'security', 'credential', 'ssn'];
+    let foundCred = credWords.filter(w => text.includes(w)).length;
+    if (foundCred >= 2) {
+        flags.push({ rule: `Contains ${foundCred} account/credential-related sensitive keywords`, level: 'suspicious' });
+    }
+    if (foundCred >= 4) {
+        const idx = flags.findIndex(f => f.rule.includes('account/credential'));
+        if (idx !== -1) flags[idx].level = 'phishing';
+    }
+
+    // Rule 5: Urgent Language
+    const urgentWords = ['expire', 'suspended', 'deactivated', 'immediate', 'within 24 hours', 'urgent', 'warning', 'action required', 'violation'];
+    for (const w of urgentWords) {
+        if (text.includes(w)) {
+            flags.push({ rule: `Contains urgent/threatening language: "${w}"`, level: 'suspicious' });
+            break;
+        }
+    }
+
+    // Rule 6: Impersonal + Link
+    if (foundUrls.length > 0 && !text.includes('hi') && !text.includes('dear') && !text.includes('hello') && !text.includes('hey')) {
+        flags.push({ rule: 'Impersonal body, contains external link only (mass email characteristic)', level: 'suspicious' });
+    }
+
+    // Rule 7: Suspicious Extensions
+    const suspExts = ['.exe', '.scr', '.bat', '.com', '.pif', '.vbs', '.js', '.jar'];
+    for (const ext of suspExts) {
+        if (text.includes(ext)) {
+            flags.push({ rule: `Suspicious file extension detected: "${ext}"`, level: 'suspicious' });
+            break;
+        }
+    }
+
+    // Rule 8: Dual Extension
+    if (/\.pdf\.exe|\.doc\.exe|\.xls\.exe|\.pdf\.scr/i.test(text)) {
+        flags.push({ rule: 'Dual extension detected (e.g., invoice.pdf.exe) - Classic malware delivery', level: 'phishing' });
+    }
+
+    if (flags.length === 0) flags.push({ rule: 'No obvious suspicious characteristics found', level: 'safe' });
+
+    let maxLevel = 'safe', riskScore = 0;
+    for (const f of flags) {
+        if (f.level === 'phishing') { maxLevel = 'phishing'; riskScore += 3; }
+        else if (f.level === 'suspicious' && maxLevel !== 'phishing') { maxLevel = 'suspicious'; riskScore += 1; }
+    }
+    return { flags, severity: maxLevel, riskScore };
+}
+
+// ================================================================
+// 4. UI RENDERING
+// ================================================================
+function renderResults(emails) {
+    const output = document.getElementById('output');
+    const summaryDiv = document.getElementById('protocolSummary');
+    const statsDiv = document.getElementById('stats');
+    const listDiv = document.getElementById('emailList');
+    const actionBar = document.getElementById('actionBar');
+
+    const protoCounts = { SMTP: 0, POP3: 0, IMAP: 0 };
+    for (const e of emails) {
+        if (e.protocol === 'SMTP') protoCounts.SMTP++;
+        else if (e.protocol === 'POP3') protoCounts.POP3++;
+        else if (e.protocol === 'IMAP') protoCounts.IMAP++;
+    }
+    const total = emails.length;
+
+    summaryDiv.innerHTML = `
+        <h3>📊 Protocol Summary</h3>
+        <div class="protocol-summary">
+            <div class="proto-card total"><span class="count">${total}</span><span class="label">Total Emails</span></div>
+            <div class="proto-card smtp"><span class="count">${protoCounts.SMTP}</span><span class="label">✉️ SMTP</span></div>
+            <div class="proto-card pop3"><span class="count">${protoCounts.POP3}</span><span class="label">📥 POP3</span></div>
+            <div class="proto-card imap"><span class="count">${protoCounts.IMAP}</span><span class="label">📨 IMAP</span></div>
+        </div>
+        <div class="filter-hint">🔍 Filter applied: <code>tcp.port in {25, 587, 110, 995, 143, 993}</code></div>
+    `;
+
+    if (total === 0) {
+        statsDiv.innerHTML = '';
+        listDiv.innerHTML = `<div class="empty-state">⚠️ No emails found. The PCAP may not contain SMTP, POP3, or IMAP traffic.</div>`;
+        actionBar.classList.add('hidden');
+        output.classList.remove('hidden');
+        return;
+    }
+
+    let phish = 0, susp = 0, safe = 0;
+    const analyzed = [];
+    for (const email of emails) {
+        const result = analyzePhishing(email);
+        email._analysis = result;
+        if (result.severity === 'phishing') phish++;
+        else if (result.severity === 'suspicious') susp++;
+        else safe++;
+        analyzed.push(email);
+    }
+
+    statsDiv.innerHTML = `
+        <div class="stats-flex">
+            <div class="stat-item stat-total">📬 Total: ${total}</div>
+            <div class="stat-item stat-safe">✅ Safe: ${safe}</div>
+            <div class="stat-item stat-susp">⚠️ Suspicious: ${susp}</div>
+            <div class="stat-item stat-phish">🚨 Phishing: ${phish}</div>
+        </div>
+    `;
+
+    if (phish > 0) actionBar.classList.remove('hidden');
+    else actionBar.classList.add('hidden');
+
+    let html = '';
+    for (const email of analyzed) {
+        const result = email._analysis;
+        const sev = result.severity;
+        let badgeClass = 'badge-safe', label = '✅ Safe', cardClass = '';
+        if (sev === 'suspicious') { badgeClass = 'badge-suspicious'; label = '⚠️ Suspicious'; cardClass = 'suspicious'; }
+        if (sev === 'phishing') { badgeClass = 'badge-phishing'; label = '🚨 Phishing'; cardClass = 'phishing'; }
+
+        let protoTag = `<span class="proto-tag ${email.protocol.toLowerCase()}">${email.protocol}</span>`;
+        let flagHtml = result.flags.map(f => {
+            let cls = 'rule-tag';
+            if (f.level === 'phishing') cls += ' danger';
+            else if (f.level === 'suspicious') cls += ' warning';
+            return `<span class="${cls}">${f.rule}</span>`;
+        }).join(' ');
+
+        const links = email.body.match(/(https?:\/\/[^\s\n\r]+)/g) || [];
+        const linkHtml = links.length > 0 ? `<div style="margin-top:6px; font-size:13px; color:#0056b3;"><strong>🔗 Links:</strong> ${links.join(' | ')}</div>` : '';
+
+        html += `
+            <div class="email-card ${cardClass}" data-from="${email.from}" data-to="${email.to}" data-subject="${email.subject}" data-body="${email.body.replace(/"/g, '&quot;')}" data-severity="${sev}" data-links="${links.join('|')}" data-rules="${result.flags.map(f => f.rule).join('||')}">
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:5px;">
+                    <span class="badge ${badgeClass}">${label}</span>
+                    ${protoTag}
+                    <strong>From:</strong> <span class="email-from">${email.from || 'Unknown'}</span> &nbsp;|&nbsp;
+                    <strong>To:</strong> <span class="email-to">${email.to || 'Unknown'}</span>
+                </div>
+                <div><strong>Subject:</strong> <span class="email-subject">${email.subject || '(No Subject)'}</span></div>
+                ${linkHtml}
+                <div style="margin-top:8px; font-size:14px;">${flagHtml}</div>
+                <details style="margin-top:8px;">
+                    <summary style="cursor:pointer; color:#007bff; font-weight:bold;">📄 Show Email Body</summary>
+                    <pre class="email-body">${email.body || '(No body)'}</pre>
+                </details>
+            </div>
+        `;
+    }
+    listDiv.innerHTML = html;
+    output.classList.remove('hidden');
+}
+
+// ================================================================
+// 5. GENERATE NOTIFICATION LOG (TXT) — Direct Browser Download
+// ================================================================
+function generateNotificationLog() {
+    const phishingCards = document.querySelectorAll('.email-card.phishing');
+    if (phishingCards.length === 0) {
+        showToast('⚠️ No phishing emails found to log.', 'error');
+        return;
+    }
+
+    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    let logContent = '';
+    let summaryEmails = [];
+
+    phishingCards.forEach((card) => {
+        const from = card.querySelector('.email-from')?.textContent.trim() || 'Unknown';
+        const to = card.querySelector('.email-to')?.textContent.trim() || 'Unknown';
+        const subject = card.querySelector('.email-subject')?.textContent.trim() || '(No Subject)';
+        const body = card.querySelector('.email-body')?.textContent.trim() || '(No body)';
+
+        const linkDiv = card.querySelector('div[style*="color:#0056b3"]');
+        const links = linkDiv ? linkDiv.textContent.replace('🔗 Links:', '').trim().split(' | ').filter(Boolean) : [];
+
+        const ruleTags = card.querySelectorAll('.rule-tag.danger, .rule-tag.warning');
+        const rules = [...ruleTags].map(el => el.textContent.trim());
+
+        let riskScore = 0;
+        for (const tag of ruleTags) {
+            if (tag.classList.contains('danger')) riskScore += 3;
+            else if (tag.classList.contains('warning')) riskScore += 1;
+        }
+
+        const threatStr = rules.length > 0 ? rules.map(r => `  - ${r}`).join('\n') : '  (No specific threats detected)';
+        const linkStr = links.length > 0 ? links.map(l => `  - ${l}`).join('\n') : '  (No links detected)';
+
+        logContent += `
+${'='.repeat(70)}
+📅 Time: ${timestamp}
+📧 Notification Type: PHISHING
+🔴 Risk Score: ${riskScore}
+─────────────────────────────────────────────────────────────
+📩 Original Email Details:
+   From: ${from}
+   To: ${to}
+   Subject: ${subject}
+─────────────────────────────────────────────────────────────
+⚠️  Detected Threats:
+${threatStr}
+─────────────────────────────────────────────────────────────
+🔗 Links in Email:
+${linkStr}
+─────────────────────────────────────────────────────────────
+📄 Body Preview:
+${body.substring(0, 300)}...
+─────────────────────────────────────────────────────────────
+💡 Actions Recommended:
+   1. Do NOT click any links in the suspicious email.
+   2. Do NOT reply or forward the email.
+   3. Delete the email from your inbox.
+   4. If you have already clicked any link, change your password immediately.
+${'='.repeat(70)}
+
+`;
+        summaryEmails.push({ to, subject, severity: 'Phishing' });
+    });
+
+    const total = phishingCards.length;
+    logContent += `
+${'='.repeat(70)}
+📅 Time: ${timestamp}
+📊 PHISHING NOTIFICATION SUMMARY
+─────────────────────────────────────────────────────────────
+📬 Total Phishing Emails Detected: ${total}
+─────────────────────────────────────────────────────────────
+📧 Affected Users:
+`;
+    for (const email of summaryEmails) {
+        logContent += `   - ${email.to} (${email.severity}) - ${email.subject}\n`;
+    }
+    logContent += `
+─────────────────────────────────────────────────────────────
+💡 Recommendations:
+   1. Review all ${total} phishing emails immediately.
+   2. Notify affected users to change their passwords.
+   3. Block malicious domains and links at the email gateway.
+   4. Conduct security awareness training for all employees.
+${'='.repeat(70)}
+
+`;
+
+    const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'notifications_log.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(`✅ Downloaded notifications_log.txt with ${total} phishing emails.`);
+}
+
+function showToast(msg, type='success') {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = `toast ${type === 'error' ? 'error' : ''}`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+}
+
+// ================================================================
+// 6. FILE LOADING
+// ================================================================
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const loader = document.getElementById('loader');
+const output = document.getElementById('output');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) handleFile(e.target.files[0]);
+});
+
+function handleFile(file) {
+    if (!file.name.endsWith('.pcap') && !file.name.endsWith('.pcapng')) {
+        alert('Please upload a .pcap or .pcapng file.');
+        return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+        alert('File too large. Maximum size is 100MB.');
+        return;
+    }
+    loader.classList.remove('hidden');
+    output.classList.add('hidden');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        try {
+            const packets = parsePcap(ev.target.result);
+            const emails = extractEmails(packets);
+            renderResults(emails);
+        } catch (err) {
+            document.getElementById('emailList').innerHTML = `<p style="color:red;">❌ Parse Error: ${err.message}</p>`;
+            document.getElementById('protocolSummary').innerHTML = '';
+            document.getElementById('stats').innerHTML = '';
+            document.getElementById('actionBar').classList.add('hidden');
+            output.classList.remove('hidden');
+        } finally {
+            loader.classList.add('hidden');
+        }
+    };
+    reader.onerror = () => { alert('Failed to read file.'); loader.classList.add('hidden'); };
+    reader.readAsArrayBuffer(file);
+}
+</script>
+</body>
+</html>
